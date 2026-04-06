@@ -1,0 +1,29 @@
+{
+  "name": "fastpay-backend",
+  "version": "1.0.50",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "db:generate": "bun x drizzle-kit generate",
+    "db:migrate": "bun x drizzle-kit migrate",
+    "db:push": "bun x drizzle-kit push",
+    "db:studio": "bun x drizzle-kit studio"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1024.0",
+    "@aws-sdk/s3-request-presigner": "^3.1024.0",
+    "@elysiajs/cookie": "^0.8.0",
+    "@elysiajs/cors": "^1.4.1",
+    "@elysiajs/jwt": "^1.4.1",
+    "@neondatabase/serverless": "^1.0.2",
+    "dotenv": "^17.4.0",
+    "drizzle-orm": "^0.45.2",
+    "elysia": "latest",
+    "nodemailer": "^8.0.4"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^8.0.0",
+    "bun-types": "latest",
+    "drizzle-kit": "^0.31.10"
+  },
+  "module": "src/index.js"
+}
