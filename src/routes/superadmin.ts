@@ -128,6 +128,30 @@ export const superadminRoutes = new Elysia({ prefix: "/superadmin" })
     }),
   })
 
+  // Upsert setting (create or update)
+  .post("/settings/upsert", async ({ body, headers, jwt }) => {
+    const sa = await verifySuperadmin(headers, jwt);
+    if (!sa) return { success: false, message: "Unauthorized" };
+
+    try {
+      const [existing] = await db.select().from(adminSettings).where(eq(adminSettings.key, body.key)).limit(1);
+      if (existing) {
+        await db.update(adminSettings).set({ value: body.value, updatedAt: new Date() }).where(eq(adminSettings.key, body.key));
+      } else {
+        await db.insert(adminSettings).values({ key: body.key, value: body.value });
+      }
+      return { success: true, message: "Setting saved" };
+    } catch (err: any) {
+      console.error("Settings upsert error:", err);
+      return { success: false, message: err.message || "Database error" };
+    }
+  }, {
+    body: t.Object({
+      key: t.String(),
+      value: t.String(),
+    }),
+  })
+
   // ── Admin Emails ──
   .get("/admin-emails", async ({ headers, jwt }) => {
     const sa = await verifySuperadmin(headers, jwt);
@@ -172,8 +196,10 @@ export const superadminRoutes = new Elysia({ prefix: "/superadmin" })
     const result = await db
       .select({
         id: bankAccounts.id,
+        type: bankAccounts.type,
         accountNo: bankAccounts.accountNo,
         upiId: bankAccounts.upiId,
+        qrCodeUrl: bankAccounts.qrCodeUrl,
         accountHolderName: bankAccounts.accountHolderName,
         ifscCode: bankAccounts.ifscCode,
         bankName: bankAccounts.bankName,

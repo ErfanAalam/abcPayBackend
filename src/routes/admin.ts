@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
 import { jwt } from "@elysiajs/jwt";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql, and, ne } from "drizzle-orm";
 import { db } from "../db";
 import {
   transactions,
@@ -8,6 +8,9 @@ import {
   securityWithdrawals,
   users,
   adminEmails,
+  adminSettings,
+  utrs,
+  bankAccounts,
 } from "../db/schema";
 
 // Middleware to verify admin/superadmin
@@ -100,6 +103,7 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
         amount: securityDeposits.amount,
         status: securityDeposits.status,
         paymentMethod: securityDeposits.paymentMethod,
+        utrNumber: securityDeposits.utrNumber,
         createdAt: securityDeposits.createdAt,
         userName: users.name,
         userPhone: users.phone,
@@ -171,6 +175,77 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
         .set({ status: body.status as any, updatedAt: new Date() })
         .where(eq(securityDeposits.id, body.id));
 
+      // Add balance to user on approval + referral commission
+      if (body.status === "approved") {
+        const [deposit] = await db
+          .select()
+          .from(securityDeposits)
+          .where(eq(securityDeposits.id, body.id))
+          .limit(1);
+        if (deposit) {
+          // Add deposit amount to user balance
+          await db
+            .update(users)
+            .set({
+              balance: sql`${users.balance} + ${deposit.amount}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(users.id, deposit.userId));
+
+          // Referral commission on first deposit
+          const previousApproved = await db
+            .select({ id: securityDeposits.id })
+            .from(securityDeposits)
+            .where(
+              and(
+                eq(securityDeposits.userId, deposit.userId),
+                eq(securityDeposits.status, "approved"),
+                ne(securityDeposits.id, deposit.id)
+              )
+            )
+            .limit(1);
+
+          if (previousApproved.length === 0) {
+            // This is the user's first approved deposit — pay referral commission
+            const [depositUser] = await db
+              .select({ referredBy: users.referredBy })
+              .from(users)
+              .where(eq(users.id, deposit.userId))
+              .limit(1);
+
+            if (depositUser?.referredBy) {
+              // Find the referrer by their referral code
+              const [referrer] = await db
+                .select({ id: users.id })
+                .from(users)
+                .where(eq(users.referralCode, depositUser.referredBy))
+                .limit(1);
+
+              if (referrer) {
+                // Get commission rate from settings
+                const [commSetting] = await db
+                  .select()
+                  .from(adminSettings)
+                  .where(eq(adminSettings.key, "referral_commission"))
+                  .limit(1);
+
+                const commissionPercent = parseFloat(commSetting?.value || "0");
+                if (commissionPercent > 0) {
+                  const commissionAmount = (parseFloat(deposit.amount) * commissionPercent / 100).toFixed(2);
+                  await db
+                    .update(users)
+                    .set({
+                      balance: sql`${users.balance} + ${commissionAmount}`,
+                      updatedAt: new Date(),
+                    })
+                    .where(eq(users.id, referrer.id));
+                }
+              }
+            }
+          }
+        }
+      }
+
       return { success: true, message: `Security deposit ${body.status}` };
     },
     {
@@ -194,6 +269,55 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
         .where(eq(securityWithdrawals.id, body.id));
 
       return { success: true, message: `Security withdrawal ${body.status}` };
+    },
+    {
+      body: t.Object({
+        id: t.String(),
+        status: t.String(),
+      }),
+    }
+  )
+
+  // ── UTR list ──
+  .get("/utrs", async ({ headers, jwt, query }) => {
+    const admin = await verifyAdmin(headers, jwt);
+    if (!admin) return { success: false, message: "Unauthorized" };
+
+    const status = (query.status as string) || "pending";
+    const results = await db
+      .select({
+        id: utrs.id,
+        userId: utrs.userId,
+        utrNumber: utrs.utrNumber,
+        amount: utrs.amount,
+        status: utrs.status,
+        createdAt: utrs.createdAt,
+        userName: users.name,
+        userPhone: users.phone,
+        bankName: bankAccounts.bankName,
+      })
+      .from(utrs)
+      .leftJoin(users, eq(utrs.userId, users.id))
+      .leftJoin(bankAccounts, eq(utrs.bankAccountId, bankAccounts.id))
+      .where(eq(utrs.status, status as any))
+      .orderBy(desc(utrs.createdAt));
+
+    return { success: true, data: results };
+  })
+
+  // ── Approve/Reject UTR ──
+  .post(
+    "/update-utr",
+    async ({ body, headers, jwt }) => {
+      const admin = await verifyAdmin(headers, jwt);
+      if (!admin) return { success: false, message: "Unauthorized" };
+
+      await db
+        .update(utrs)
+        .set({ status: body.status as any, updatedAt: new Date() })
+        .where(eq(utrs.id, body.id));
+
+      return { success: true, message: `UTR ${body.status}` };
     },
     {
       body: t.Object({

@@ -77,8 +77,10 @@ export const bankAccounts = pgTable("bank_accounts", {
   userId: uuid("user_id")
     .references(() => users.id)
     .notNull(),
+  type: varchar("type", { length: 10 }).default("bank").notNull(), // "bank" or "upi"
   accountNo: varchar("account_no", { length: 30 }).notNull(),
   upiId: varchar("upi_id", { length: 100 }),
+  qrCodeUrl: text("qr_code_url"),
   accountHolderName: varchar("account_holder_name", { length: 255 }).notNull(),
   ifscCode: varchar("ifsc_code", { length: 20 }).notNull(),
   bankName: varchar("bank_name", { length: 255 }).notNull(),
@@ -139,7 +141,8 @@ export const securityDeposits = pgTable("security_deposits", {
   type: varchar("type", { length: 20 }).notNull(), // normal or crypto
   amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
   channelId: uuid("channel_id").references(() => depositChannels.id),
-  paymentMethod: varchar("payment_method", { length: 20 }), // upi or bank
+  paymentMethod: varchar("payment_method", { length: 20 }), // upi, bank, bep20, trc20
+  utrNumber: varchar("utr_number", { length: 100 }), // UTR for UPI/Bank, TxnID for crypto
   status: transactionStatusEnum("status").default("pending").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

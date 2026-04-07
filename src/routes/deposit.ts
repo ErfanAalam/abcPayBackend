@@ -24,6 +24,26 @@ export const depositRoutes = new Elysia({ prefix: "/deposit" })
     return { success: true, channels };
   })
 
+  // Get crypto wallet settings (bep20 / trc20)
+  .get("/crypto-wallets", async () => {
+    const allSettings = await db.select().from(adminSettings);
+    const map: Record<string, string> = {};
+    for (const s of allSettings) map[s.key] = s.value;
+    return {
+      success: true,
+      wallets: {
+        bep20: {
+          address: map["crypto_bep20_wallet"] || "",
+          qrUrl: map["crypto_bep20_qr"] || "",
+        },
+        trc20: {
+          address: map["crypto_trc20_wallet"] || "",
+          qrUrl: map["crypto_trc20_qr"] || "",
+        },
+      },
+    };
+  })
+
   // Get exchange rate
   .get("/exchange-rate", async () => {
     const [setting] = await db
@@ -51,6 +71,7 @@ export const depositRoutes = new Elysia({ prefix: "/deposit" })
           amount: body.amount,
           channelId: body.channelId || null,
           paymentMethod: body.paymentMethod || null,
+          utrNumber: body.utrNumber || null,
         })
         .returning();
 
@@ -62,6 +83,7 @@ export const depositRoutes = new Elysia({ prefix: "/deposit" })
         amount: t.String(),
         channelId: t.Optional(t.String()),
         paymentMethod: t.Optional(t.String()),
+        utrNumber: t.Optional(t.String()),
       }),
     }
   );

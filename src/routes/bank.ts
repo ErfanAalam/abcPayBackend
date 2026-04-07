@@ -40,15 +40,19 @@ export const bankRoutes = new Elysia({ prefix: "/bank" })
       const payload = await jwt.verify(token);
       if (!payload) return { success: false, message: "Unauthorized" };
 
+      const isUpi = body.type === "upi";
+
       const [bank] = await db
         .insert(bankAccounts)
         .values({
           userId: payload.id as string,
-          accountNo: body.accountNo,
+          type: isUpi ? "upi" : "bank",
+          accountNo: isUpi ? "-" : body.accountNo,
           upiId: body.upiId || null,
-          accountHolderName: body.accountHolderName,
-          ifscCode: body.ifscCode,
-          bankName: body.bankName,
+          qrCodeUrl: body.qrCodeUrl || null,
+          accountHolderName: isUpi ? (body.accountHolderName || "-") : body.accountHolderName,
+          ifscCode: isUpi ? "-" : body.ifscCode,
+          bankName: isUpi ? "UPI" : body.bankName,
           bankBranch: body.bankBranch || null,
           bankAddress: body.bankAddress || null,
           maxWithdrawalAmount: body.maxWithdrawalAmount
@@ -62,11 +66,13 @@ export const bankRoutes = new Elysia({ prefix: "/bank" })
     },
     {
       body: t.Object({
-        accountNo: t.String({ minLength: 1 }),
+        type: t.Optional(t.String()),
+        accountNo: t.Optional(t.String()),
         upiId: t.Optional(t.String()),
-        accountHolderName: t.String({ minLength: 1 }),
-        ifscCode: t.String({ minLength: 1 }),
-        bankName: t.String({ minLength: 1 }),
+        qrCodeUrl: t.Optional(t.String()),
+        accountHolderName: t.Optional(t.String()),
+        ifscCode: t.Optional(t.String()),
+        bankName: t.Optional(t.String()),
         bankBranch: t.Optional(t.String()),
         bankAddress: t.Optional(t.String()),
         maxWithdrawalAmount: t.Optional(t.String()),
