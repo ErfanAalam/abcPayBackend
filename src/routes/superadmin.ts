@@ -103,6 +103,16 @@ export const superadminRoutes = new Elysia({ prefix: "/superadmin" })
   }, { body: t.Object({ id: t.String() }) })
 
   // ── Settings ──
+  // Public: fetch a single setting value by key (no auth required)
+  .get("/settings/public/:key", async ({ params }) => {
+    const [row] = await db
+      .select()
+      .from(adminSettings)
+      .where(eq(adminSettings.key, params.key))
+      .limit(1);
+    return { success: true, value: row?.value ?? null };
+  })
+
   .get("/settings", async ({ headers, jwt }) => {
     const sa = await verifySuperadmin(headers, jwt);
     if (!sa) return { success: false, message: "Unauthorized" };
