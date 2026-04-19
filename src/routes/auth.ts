@@ -1,8 +1,8 @@
 import { Elysia, t } from "elysia";
 import { jwt } from "@elysiajs/jwt";
-import { eq } from "drizzle-orm";
+import { eq, and, gte, asc, sql } from "drizzle-orm";
 import { db } from "../db";
-import { users } from "../db/schema";
+import { users, securityDeposits, securityWithdrawals, tiers } from "../db/schema";
 import { generateReferralCode } from "../lib/referral";
 import { sendOtpEmail } from "../lib/email";
 
@@ -264,6 +264,73 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
       }),
     }
   )
+
+  // Tier progress — based on approved security deposits/withdrawals in last 30 days
+  .get("/tier-progress", async ({ headers, jwt }) => {
+    const token = headers.authorization?.replace("Bearer ", "");
+    if (!token) return { success: false, message: "Unauthorized" };
+
+    const payload = await jwt.verify(token);
+    if (!payload) return { success: false, message: "Unauthorized" };
+
+    const userId = payload.id as string;
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const [depositAgg] = await db
+      .select({
+        total: sql<string>`COALESCE(SUM(${securityDeposits.amount}), 0)`,
+      })
+      .from(securityDeposits)
+      .where(
+        and(
+          eq(securityDeposits.userId, userId),
+          eq(securityDeposits.status, "approved"),
+          gte(securityDeposits.createdAt, since)
+        )
+      );
+
+    const [withdrawalAgg] = await db
+      .select({
+        total: sql<string>`COALESCE(SUM(${securityWithdrawals.amount}), 0)`,
+      })
+      .from(securityWithdrawals)
+      .where(
+        and(
+          eq(securityWithdrawals.userId, userId),
+          eq(securityWithdrawals.status, "approved"),
+          gte(securityWithdrawals.createdAt, since)
+        )
+      );
+
+    const depositTurnover = parseFloat(depositAgg?.total ?? "0");
+    const withdrawalTurnover = parseFloat(withdrawalAgg?.total ?? "0");
+
+    const allTiers = await db.select().from(tiers).orderBy(asc(tiers.sortOrder));
+
+    // Current tier: highest tier whose thresholds are met on BOTH metrics
+    let current = allTiers[0] ?? null;
+    for (const tier of allTiers) {
+      if (
+        depositTurnover >= tier.depositTurnover &&
+        withdrawalTurnover >= tier.withdrawalTurnover
+      ) {
+        current = tier;
+      }
+    }
+
+    const currentIndex = current ? allTiers.findIndex((t) => t.id === current!.id) : -1;
+    const next = currentIndex >= 0 && currentIndex < allTiers.length - 1
+      ? allTiers[currentIndex + 1]
+      : null;
+
+    return {
+      success: true,
+      depositTurnover,
+      withdrawalTurnover,
+      currentTier: current,
+      nextTier: next,
+    };
+  })
 
   // Get current user
   .get("/me", async ({ headers, jwt }) => {

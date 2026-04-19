@@ -26,7 +26,7 @@ const app = new Elysia()
   .use(adminRoutes)
   .use(superadminRoutes)
   .use(uploadRoutes)
-  .get("/", () => ({ message: "AbcPay API is running" }))
+  .get("/", () => ({ message: "Crypto Profit Zone API is running" }))
   .get("/health", () => ({ status: "ok" }))
   .get("/tiers", async () => {
     const allTiers = await db.select().from(tiers).orderBy(asc(tiers.sortOrder));
@@ -35,5 +35,5 @@ const app = new Elysia()
   .listen(process.env.PORT || 4000);
 
 console.log(
-  `AbcPay API is running at ${app.server?.hostname}:${app.server?.port}`
+  `Crypto Profit Zone API is running at ${app.server?.hostname}:${app.server?.port}`
 );

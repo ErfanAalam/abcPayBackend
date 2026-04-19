@@ -30,7 +30,7 @@ async function seed() {
       bankAccountNo: "1234567890123",
       bankIfsc: "SBIN0001234",
       bankName: "State Bank of India",
-      bankHolderName: "AbcPay Pvt Ltd",
+      bankHolderName: "Crypto Profit Zone Pvt Ltd",
       sortOrder: 2,
     },
     {
