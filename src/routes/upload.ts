@@ -19,8 +19,7 @@ export const uploadRoutes = new Elysia({ prefix: "/upload" })
       if (!token) return { success: false, message: "Unauthorized" };
 
       const payload = await jwt.verify(token);
-      if (!payload || (payload.role !== "superadmin" && payload.role !== "admin"))
-        return { success: false, message: "Unauthorized" };
+      if (!payload) return { success: false, message: "Unauthorized" };
 
       const file = body.file;
       const buffer = Buffer.from(await file.arrayBuffer());
